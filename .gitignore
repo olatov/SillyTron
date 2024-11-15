@@ -1,0 +1,9 @@
+*.o
+*.ppu
+*.lps
+*.bin
+*.compiled
+bin/
+src/backup
+src/sillytron
+src/sillyasm

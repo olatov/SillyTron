@@ -1,0 +1,55 @@
+Start:
+  Jump Main
+
+Data:
+  var line1 string 'There is a house, in new Orleans'
+  var line2 string 'They call the Rising Sun...'
+  var foo integer 222
+  var bar integer 333
+  var baz integer 0
+  var num_chars 40
+
+Main:
+  Call PrintText
+  Call PrintChars
+
+  Load $foo
+  Add $bar
+  PrintInteger
+  Store $baz
+
+  Load 31416
+  Dec Acc
+  PrintInteger
+
+  Load @baz
+  Store Idx
+  Load @Idx
+  PrintInteger
+
+  Halt
+
+PrintText:
+  Load @line1
+  PrintString
+  Load @line2
+  PrintString
+  Return
+
+PrintChars:
+  Load $num_chars
+  Push
+
+  __loop:
+    Pop
+    Dec Acc
+    JumpIfSign __exit
+    Push
+    Load 65  // 'A' char ASCII code
+    PrintChar
+    Jump __loop
+  
+  __exit:
+    Load 10
+    PrintChar
+    Return

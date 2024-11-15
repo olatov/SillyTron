@@ -1,0 +1,49 @@
+// Running some nested loops.
+// MainCount * OuterCount * InnerCount iterations total.
+
+Start:
+  Jump Main
+
+Data:
+  var MainCount integer 100
+  var OuterCount integer 1000
+  var InnerCount integer 10000
+
+Main:
+  Load $MainCount
+  Push
+  __main_loop:
+    Pop
+    PrintInteger
+    Dec Acc
+    JumpIfZero __main_exit
+    Push
+    Call Outer
+    Jump __main_loop
+  __main_exit:
+    Halt
+
+Outer:
+  Load $OuterCount
+  Push
+  __outer_loop:
+    Pop
+    Dec Acc
+    JumpIfZero __outer_exit
+    Push
+    Call Inner
+    Jump __outer_loop
+  __outer_exit:
+    Return
+
+Inner:
+  Load $InnerCount
+  Push
+  __inner_loop:
+    Pop
+    Dec Acc
+    JumpIfZero __inner_exit
+    Push
+    Jump __inner_loop
+  __inner_exit:
+    Return

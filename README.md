@@ -25,12 +25,12 @@ This will create `sillytron` and `sillyasm` stand-alone executables the `bin` di
 2. Build a program using SillyAsm.
 
 ```bash
-./sillyasm examples/sample.sasm
+bin/sillyasm examples/sample.sasm
 ```
 This will produce a compiled binary called `sample.bin`.
 
 3. Run the program using SillyTron.
 
 ```bash
-./sillytron examples/sample.bin
+bin/sillytron examples/sample.bin
 ```

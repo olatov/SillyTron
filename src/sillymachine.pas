@@ -7,17 +7,18 @@ interface
 uses
   Classes, SysUtils;
 
+{
+    Acc: Accumulator Register (16 bit, signed)
+    Idx: Index Register (16 bit, unsigned)
+    PC: Program Counter Register (16 bit, unsigned)
+    SP: Stack Pointer Register (16 bit, unsigned)
+    ZF: Zero Flag (boolean)
+    SF: Sign Flag (boolean)
+    HF: Halt Flag (boolean)
+}
+
 type
   TOperation = (
-                            {
-                              Acc: Accumulator Register
-                              Idx: Index Register
-                              PC: Program Counter Register
-                              SP: Stack Pointer Register
-                              ZF: Zero Flag
-                              SF: Sign Flag
-                              HF: Halt Flag
-                            }
     opNop,                  // Nothing (empty cycle)
     opLoadConst,            // Acc := const
     opLoadMemDirect,        // Acc := Mem[const]
@@ -72,7 +73,6 @@ type
     FMemory: array of Word;
     FRegisters: TRegisters;
     FCycles: LongWord;
-
     procedure Nop;
     procedure LoadConst;
     procedure LoadMemDirect;
@@ -156,7 +156,7 @@ end;
 
 procedure TMachine.StoreMemDirect();
 var
-  Address: Integer;
+  Address: Word;
 begin
   Address := FMemory[FRegisters.ProgramCounter];
   Inc(FRegisters.ProgramCounter);

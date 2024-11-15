@@ -2,7 +2,7 @@ Start:
   Jump Main
 
 Data:
-  var line1 string 'There is a house, in new Orleans'
+  var line1 string 'There is a house, in New Orleans'
   var line2 string 'They call the Rising Sun...'
   var foo integer 222
   var bar integer 333

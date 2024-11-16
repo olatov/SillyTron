@@ -30,7 +30,7 @@ var
   I: Integer;
   LineCounter: Integer;
   StringChar: Char;
-  Instruction: Tinstruction;
+  Instruction: TInstruction;
 
 begin
   InputFilename := ParamStr(1);

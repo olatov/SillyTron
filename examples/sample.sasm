@@ -7,7 +7,7 @@ Data:
   var foo integer 222
   var bar integer 333
   var baz integer 0
-  var num_chars 40
+  var num_chars integer 30
 
 Main:
   Call PrintText

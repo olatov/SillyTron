@@ -113,7 +113,7 @@ type
     procedure Reset();
     procedure Run();
     procedure Step();
-    procedure LoadData(Address: Word; Data: TBytesStream);
+    procedure LoadData(Address: Word; Data: TStream);
     procedure PrintState();
   end;
 
@@ -423,7 +423,7 @@ begin
   end;
 end;
 
-procedure TMachine.LoadData(Address: Word; Data: TBytesStream);
+procedure TMachine.LoadData(Address: Word; Data: TStream);
 begin
   Data.ReadBuffer(FMemory[Address], Data.Size);
 end;

@@ -43,6 +43,11 @@
         <Filename Value="program.asm"/>
         <IsPartOfProject Value="True"/>
       </Unit>
+      <Unit>
+        <Filename Value="sillyasmprocessor.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="SillyAsmProcessor"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

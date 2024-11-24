@@ -4,9 +4,7 @@ program SillyTron;
 {$modeswitch typehelpers}
 
 uses
-  Classes,
-  SysUtils,
-  SillyMachine;
+  Classes, SysUtils, SillyMachine;
 
 var
   ProgamStream: TBytesStream;

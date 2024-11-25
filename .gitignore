@@ -3,7 +3,10 @@
 *.lps
 *.bin
 *.compiled
+*.s
 bin/
 src/backup
 src/sillytron
 src/sillyasm
+src/sillyasmtonasm
+

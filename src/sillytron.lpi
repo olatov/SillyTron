@@ -40,13 +40,19 @@
         <UnitName Value="SillyAsm"/>
       </Unit>
       <Unit>
-        <Filename Value="program.asm"/>
+        <Filename Value="sillyasmtonasm.lpr"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="SillyAsmToNasm"/>
       </Unit>
       <Unit>
         <Filename Value="sillyasmprocessor.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="SillyAsmProcessor"/>
+      </Unit>      
+      <Unit>
+        <Filename Value="sillyasmtonasmprocessor.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="SillyAsmToNasmProcessor"/>
       </Unit>
     </Units>
   </ProjectOptions>

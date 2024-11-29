@@ -28,7 +28,7 @@ begin
 
   InputStream := TFileStream.Create(InputFilename, fmOpenRead);
   OutputStream := TFileStream.Create(
-    ChangeFileExt(InputFilename, '.s'), fmCreate);
+    ChangeFileExt(InputFilename, '.asm'), fmCreate);
   Verbose := (ParamStr(2) = '-v');
 
   try

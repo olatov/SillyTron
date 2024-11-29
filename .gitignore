@@ -3,10 +3,13 @@
 *.lps
 *.bin
 *.compiled
-*.s
+*.asm
+*.bak
+*.res
+*.or
 bin/
 src/backup
 src/sillytron
 src/sillyasm
 src/sillyasmtonasm
-
+src/stdlib/backup

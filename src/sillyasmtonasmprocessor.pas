@@ -29,6 +29,7 @@ type
   TCodeChunk = record
     Section: TCodeSection;
     Lines: TStringList;
+    StandardLibraryDependencies: TStringArray;
   end;
 
   { TSillyAsmToNasmProcessor }
@@ -40,7 +41,9 @@ type
     FOutputStream: TStream;
     function ProcessLine(ALine: String; ALineNumber: LongWord): TCodeChunk;
     procedure ProcessLines();
-    function GetStandardLibrary(): TStringList;
+    function GetStandardLibraryRoutine(AName: String): String;
+    function GetResourceContents(AResourceName: String): String;
+    function ResolveInternalDependencies(ARoutines: TStringList): TStringList;
   public
     constructor Create(
       const AInputStream, AOutputStream: TStream;
@@ -49,6 +52,8 @@ type
   end;
 
 implementation
+
+{$R sillyasmtonasm.rc}
 
 uses
   Types, StrUtils, StreamEx, SillyMachine;
@@ -86,6 +91,7 @@ var
 begin
   Result.Section := csText;
   Result.Lines := TStringList.Create();
+  Result.StandardLibraryDependencies := [];
 
   Tokens := ALine.ToLower().Split(
     [' ', #9],
@@ -206,16 +212,28 @@ begin
       Result.Lines.Add('ret');
 
     'printchar':
-      Result.Lines.Add('call __Std__PrintChar');
+      begin
+        Result.Lines.Add('call __Std__PrintChar');
+        Result.StandardLibraryDependencies := ['__Std__PrintChar'];
+      end;
 
     'printinteger':
-      Result.Lines.Add('call __Std__PrintInteger');
+      begin
+        Result.Lines.Add('call __Std__PrintInteger');
+        Result.StandardLibraryDependencies := ['__Std__PrintInteger'];
+      end;
 
     'printstring':
-      Result.Lines.Add('call __Std__PrintString');
+      begin
+        Result.Lines.Add('call __Std__PrintString');
+        Result.StandardLibraryDependencies := ['__Std__PrintString'];
+      end;
 
     'sleep':
-      Result.Lines.Add('call __Std__Sleep');
+      begin
+        Result.Lines.Add('call __Std__Sleep');
+        Result.StandardLibraryDependencies := ['__Std__Sleep'];
+      end;
 
     'halt':
       begin
@@ -256,19 +274,23 @@ var
   OutputWriter: TStreamWriter;
   LineCounter: LongWord;
   Line: String;
-  StandardLibrary: TStringList;
+  StandardLibraryDependencies: TStringList;
+  InternalDependencies: TStringList;
   DataSection: TStringList;
   CodeChunk: TCodeChunk;
+  RoutineName: String;
 begin
   InputReader := TStreamReader.Create(FInputStream);
   OutputWriter := TStreamWriter.Create(FOutputStream);
 
+  StandardLibraryDependencies := TStringList.Create();
+  StandardLibraryDependencies.Sorted := true;
+  StandardLibraryDependencies.Duplicates := dupIgnore;
+
   // Text (code) section
   if FVerbose then
     OutputWriter.WriteLine(';; Text (code) section');
-  OutputWriter.WriteLine('section .text');
-  OutputWriter.WriteLine('global _start');
-  OutputWriter.WriteLine('_start:');
+  OutputWriter.WriteLine(GetResourceContents('SRC_SECTION_TEXT'));
 
   try
     LineCounter := 0;
@@ -300,6 +322,7 @@ begin
               DataSection.AddStrings(CodeChunk.Lines);
           end;
           FreeAndNil(CodeChunk.Lines);
+          StandardLibraryDependencies.AddStrings(CodeChunk.StandardLibraryDependencies);
         end;
       except
         on E: Exception do
@@ -308,118 +331,79 @@ begin
     end;
 
     // Write std routines
-    StandardLibrary := GetStandardLibrary();
-    if FVerbose then
-      OutputWriter.WriteLine(';; Standard Library routines');
-    OutputWriter.WriteLine(StandardLibrary.Text);
-    FreeAndNil(StandardLibrary);
+    if StandardLibraryDependencies.Count > 0 then
+    begin
+      if FVerbose then
+        OutputWriter.WriteLine(';; Standard Library routines');
+
+      InternalDependencies := ResolveInternalDependencies(StandardLibraryDependencies);
+      StandardLibraryDependencies.AddStrings(InternalDependencies);
+      FreeAndNil(InternalDependencies);
+
+      for RoutineName in StandardLibraryDependencies do
+        OutputWriter.WriteLine(GetStandardLibraryRoutine(RoutineName));
+    end;
 
     // Data section
     if FVerbose then
       OutputWriter.WriteLine(';; Data section');
-    OutputWriter.WriteLine('section .data');
-    OutputWriter.WriteLine('__Std__CharBuf db 0');
-    OutputWriter.WriteLine('__Std__TimeSpec:');
-    OutputWriter.WriteLine('dq 0');
-    OutputWriter.WriteLine('dq 1000000');
+    OutputWriter.WriteLine(GetResourceContents('SRC_SECTION_DATA'));
 
     if DataSection.Count > 0 then
       OutputWriter.WriteLine(DataSection.Text);
 
   finally
+    FreeAndNil(StandardLibraryDependencies);
     FreeAndNil(OutputWriter);
     FreeAndNil(InputReader);
   end;
 end;
 
-function TSillyAsmToNasmProcessor.GetStandardLibrary(): TStringList;
+function TSillyAsmToNasmProcessor.GetStandardLibraryRoutine(
+  AName: String): String;
+var
+  ResourceName: String;
+begin
+  ResourceName := 'LIB' + AName.ToUpper();
+  try
+    Result := GetResourceContents(ResourceName);
+  except
+    on E: EResNotFound do
+      raise Exception.Create(
+        Format('Internal error: library routine "%s" not known.', [AName]));
+  end;
+end;
+
+function TSillyAsmToNasmProcessor.GetResourceContents(
+  AResourceName: String): String;
+var
+  ResourceStream: TResourceStream;
+  Content: TStringList;
+begin
+  ResourceStream := TResourceStream.Create(HInstance, AResourceName, RT_RCDATA);
+  Content := TStringList.Create();
+  try
+    Content.LoadFromStream(ResourceStream);
+    Result := Content.Text;
+  finally
+    FreeAndNil(ResourceStream);
+    FreeAndNil(Content)
+  end;
+end;
+
+function TSillyAsmToNasmProcessor.ResolveInternalDependencies(
+  ARoutines: TStringList): TStringList;
+var
+  RoutineName: String;
 begin
   Result := TStringList.Create();
-  Result.AddStrings([
-    '__Std__PrintChar:',
-      'push rax',
-      'mov [__Std__CharBuf], al',
-      'mov rax, 1',
-      'mov rdi, 1',
-      'mov rsi, __Std__CharBuf',
-      'mov rdx, 1',
-      'syscall',
-      'pop rax',
-      'ret'
-  ]);
+  Result.Duplicates := TDuplicates.dupIgnore;
 
-  Result.AddStrings([
-    '__Std__PrintInteger:',
-        'push rax',
-        'push rbx',
-        'test ax, ax',
-        'jns __Std__PrintInteger__ProcessNumber',
-        'neg ax',
-        'mov al, ''-''',
-        'call __Std__PrintChar',
-        '__Std__PrintInteger__ProcessNumber:',
-          'xor rcx, rcx',
-        '__Std__PrintInteger__ReverseDigits:',
-          'xor dx, dx',
-          'mov bx, 10',
-          'div bx',
-          'push rdx',
-          'inc cx',
-          'test ax, ax',
-          'jnz __Std__PrintInteger__ReverseDigits',
-        '__Std__PrintInteger__PrintDigits:',
-          'pop rdx',
-          'mov al, dl',
-          'add al, ''0''',
-          'push rcx',
-          'call __Std__PrintChar',
-          'pop rcx',
-          'loop __Std__PrintInteger__PrintDigits',
-        'mov al, 10',
-        'call __Std__PrintChar',
-        'pop rbx',
-        'pop rax',
-        'ret'
-  ]);
-
-  Result.AddStrings([
-    '__Std__PrintString:',
-      'push rax',
-      'mov rsi, rax',
-      '__Std__PrintString__Loop:',
-        'xor rax, rax',
-        'mov al, [rsi]',
-        'test al, al',
-        'jz __Std__PrintString__Exit',
-        'push rsi',
-        'call __Std__PrintChar',
-        'pop rsi',
-        'inc rsi',
-        'jmp __Std__PrintString__Loop',
-      '__Std__PrintString__Exit:',
-        'mov rax, 10',
-        'call __Std__PrintChar',
-        'pop rax',
-        'ret'
-  ]);
-
-  Result.AddStrings([
-    '__Std__Sleep:',
-      'push rax',
-      'lea rdi, [__Std__TimeSpec]',
-      'xor rsi, rsi',
-      'xor rcx, rcx',
-      'mov cx, ax',
-      '__Std__Sleep__Loop:',
-        'push rcx',
-        'mov rax, 35',
-        'syscall',
-        'pop rcx',
-        'loop __Std__Sleep__Loop',
-      'pop rax',
-      'ret'
-  ]);
-
+  for RoutineName in ARoutines do
+    case RoutineName of
+      '__Std__PrintString', '__Std__PrintInteger':
+        Result.Add('__Std__PrintChar');
+    end;
 end;
 
 constructor TSillyAsmToNasmProcessor.Create(

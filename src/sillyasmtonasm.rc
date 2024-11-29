@@ -1,0 +1,6 @@
+SRC_SECTION_TEXT        RCDATA  "stdlib/text.inc"
+SRC_SECTION_DATA        RCDATA  "stdlib/data.inc"
+LIB__STD__PRINTCHAR     RCDATA  "stdlib/__Std__PrintChar.inc"
+LIB__STD__PRINTINTEGER  RCDATA  "stdlib/__Std__PrintInteger.inc"
+LIB__STD__PRINTSTRING   RCDATA  "stdlib/__Std__PrintString.inc"
+LIB__STD__SLEEP         RCDATA  "stdlib/__Std__Sleep.inc"

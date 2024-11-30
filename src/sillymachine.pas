@@ -33,6 +33,12 @@ type
     opSubtractConst,        // Acc := Acc - const
     opSubtractMemDirect,    // Acc := Acc - Mem[const]
     opSubtractMemIndirect,  // Acc := Acc - Mem[Idx]
+    opMultiplyConst,        // Acc := Acc * const
+    opMultiplyMemDirect,    // Acc := Acc * Mem[const]
+    opMultiplyMemIndirect,  // Acc := Acc * Mem[Idx]
+    opDivideConst,          // Acc := Acc / const; Idx := Acc MOD const
+    opDivideMemDirect,      // Acc := Acc / Mem[const]; Idx := Acc MOD Mem[const]
+    opDivideMemIndirect,    // Acc := Acc / Mem[Idx]; Idx := Acc MOD Mem[Idx]
     opNegate,               // Acc := -Acc
     opIncAccumulator,       // Acc := Acc + 1
     opDecAccumulator,       // Acc := Acc - 1
@@ -88,6 +94,12 @@ type
     procedure SubtractConst;
     procedure SubtractMemIndirect;
     procedure SubtractMemDirect;
+    procedure MultiplyConst;
+    procedure MultiplyMemDirect;
+    procedure MultiplyMemIndirect;
+    procedure DivideConst;
+    procedure DivideMemDirect;
+    procedure DivideMemIndirect;
     procedure Negate;
     procedure IncAccumulator;
     procedure DecAccumulator;
@@ -109,6 +121,7 @@ type
     procedure SleepMs();
     procedure Halt();
     procedure UpdateFlags();
+    function FetchWord(): Word;
   public
     property Cycles: LongWord read FCycles;
     constructor Create(MemorySize: Integer = 65536);
@@ -121,6 +134,9 @@ type
 
 implementation
 
+uses
+  Math;
+
 { TMachine }
 
 procedure TMachine.Nop();
@@ -130,18 +146,13 @@ end;
 
 procedure TMachine.LoadConst();
 begin
-  FRegisters.Accumulator := SmallInt(FMemory[FRegisters.ProgramCounter]);
-  Inc(FRegisters.ProgramCounter);
+  FRegisters.Accumulator := SmallInt(FetchWord());
   UpdateFlags();
 end;
 
 procedure TMachine.LoadMemDirect();
-var
-  Address: Word;
 begin
-  Address := FMemory[FRegisters.ProgramCounter];
-  Inc(FRegisters.ProgramCounter);
-  FRegisters.Accumulator := SmallInt(FMemory[Address]);
+  FRegisters.Accumulator := SmallInt(FMemory[FetchWord()]);
   UpdateFlags();
 end;
 
@@ -157,12 +168,8 @@ begin
 end;
 
 procedure TMachine.StoreMemDirect();
-var
-  Address: Word;
 begin
-  Address := FMemory[FRegisters.ProgramCounter];
-  Inc(FRegisters.ProgramCounter);
-  FMemory[Address] := Word(FRegisters.Accumulator);
+  FMemory[FetchWord()] := Word(FRegisters.Accumulator);
 end;
 
 procedure TMachine.StoreIndex();
@@ -178,18 +185,13 @@ end;
 
 procedure TMachine.AddConst();
 begin
-  Inc(FRegisters.Accumulator, SmallInt(FMemory[FRegisters.ProgramCounter]));
-  Inc(FRegisters.ProgramCounter);
+  Inc(FRegisters.Accumulator, SmallInt(FetchWord()));
   UpdateFlags();
 end;
 
 procedure TMachine.AddMemDirect();
-var
-  Address: Word;
 begin
-  Address := FMemory[FRegisters.ProgramCounter];
-  Inc(FRegisters.ProgramCounter);
-  Inc(FRegisters.Accumulator, SmallInt(FMemory[Address]));
+  Inc(FRegisters.Accumulator, SmallInt(FMemory[FetchWord()]));
   UpdateFlags();
 end;
 
@@ -201,24 +203,83 @@ end;
 
 procedure TMachine.SubtractConst();
 begin
-  Dec(FRegisters.Accumulator, SmallInt(FMemory[FRegisters.ProgramCounter]));
-  Inc(FRegisters.ProgramCounter);
+  Dec(FRegisters.Accumulator, SmallInt(FetchWord()));
   UpdateFlags();
 end;
 
 procedure TMachine.SubtractMemDirect();
-var
-  Address: Word;
 begin
-  Address := FMemory[FRegisters.ProgramCounter];
-  Inc(FRegisters.ProgramCounter);
-  Dec(FRegisters.Accumulator, SmallInt(FMemory[Address]));
+  Dec(FRegisters.Accumulator, SmallInt(FMemory[FetchWord()]));
   UpdateFlags();
 end;
 
 procedure TMachine.SubtractMemIndirect();
 begin
   Dec(FRegisters.Accumulator, SmallInt(FMemory[FRegisters.Index]));
+  UpdateFlags();
+end;
+
+procedure TMachine.MultiplyConst;
+begin
+  FRegisters.Accumulator := FRegisters.Accumulator * SmallInt(FetchWord());
+  UpdateFlags();
+end;
+
+procedure TMachine.MultiplyMemDirect;
+begin
+  FRegisters.Accumulator :=
+    FRegisters.Accumulator * SmallInt(FMemory[FetchWord()]);
+  UpdateFlags();
+end;
+
+procedure TMachine.MultiplyMemIndirect;
+begin
+  FRegisters.Accumulator :=
+    FRegisters.Accumulator * SmallInt(FMemory[FRegisters.Index]);
+end;
+
+procedure TMachine.DivideConst;
+var
+  Result: LongInt;
+  Remainder: LongInt;
+begin
+  Result := 0;
+  Remainder := 0;
+  DivMod(
+    FRegisters.Accumulator, SmallInt(FetchWord),
+    Result, Remainder);
+  FRegisters.Accumulator := Result;
+  FRegisters.Index := Remainder;
+  UpdateFlags();
+end;
+
+procedure TMachine.DivideMemDirect;
+var
+  Result: LongInt;
+  Remainder: LongInt;
+begin
+  Result := 0;
+  Remainder := 0;
+  DivMod(
+    FRegisters.Accumulator, SmallInt(FMemory[FetchWord]),
+    Result, Remainder);
+  FRegisters.Accumulator := Result;
+  FRegisters.Index := Remainder;
+  UpdateFlags();
+end;
+
+procedure TMachine.DivideMemIndirect;
+var
+  Result: LongInt;
+  Remainder: LongInt;
+begin
+  Result := 0;
+  Remainder := 0;
+  DivMod(
+    FRegisters.Accumulator, SmallInt(FMemory[FRegisters.Index]),
+    Result, Remainder);
+  FRegisters.Accumulator := Result;
+  FRegisters.Index := Remainder;
   UpdateFlags();
 end;
 
@@ -358,6 +419,12 @@ begin
   FRegisters.SignFlag := FRegisters.Accumulator < 0;
 end;
 
+function TMachine.FetchWord(): Word;
+begin
+  Result := FMemory[FRegisters.ProgramCounter];
+  Inc(FRegisters.ProgramCounter);
+end;
+
 constructor TMachine.Create(MemorySize: Integer = 65536);
 begin
   inherited Create();
@@ -408,6 +475,12 @@ begin
     opSubtractConst: SubtractConst();
     opSubtractMemDirect: SubtractMemDirect();
     opSubtractMemIndirect: SubtractMemIndirect();
+    opMultiplyConst: MultiplyConst();
+    opMultiplyMemDirect: MultiplyMemDirect();
+    opMultiplyMemIndirect: MultiplyMemIndirect();
+    opDivideConst: DivideConst();
+    opDivideMemDirect: DivideMemDirect();
+    opDivideMemIndirect: DivideMemIndirect();
     opNegate: Negate();
     opIncAccumulator: IncAccumulator();
     opDecAccumulator: DecAccumulator();

@@ -230,6 +230,44 @@ begin
         end
       end;
 
+    'multiply':
+      begin
+        if Tokens[1] = '@idx' then
+          Instruction.Operation := opMultiplyMemIndirect
+        else
+        if Tokens[1].StartsWith('$') then
+        begin
+          Instruction.Operation := opMultiplyMemDirect;
+          Instruction.ParamType := ptReference;
+          Instruction.ParamValue := Tokens[1].TrimLeft('$');
+        end
+        else
+        begin
+          Instruction.Operation := opMultiplyConst;
+          Instruction.ParamType := ptConst;
+          Instruction.ParamValue := Tokens[1];
+        end
+      end;
+
+    'divide':
+      begin
+        if Tokens[1] = '@idx' then
+          Instruction.Operation := opDivideMemIndirect
+        else
+        if Tokens[1].StartsWith('$') then
+        begin
+          Instruction.Operation := opDivideMemDirect;
+          Instruction.ParamType := ptReference;
+          Instruction.ParamValue := Tokens[1].TrimLeft('$');
+        end
+        else
+        begin
+          Instruction.Operation := opDivideConst;
+          Instruction.ParamType := ptConst;
+          Instruction.ParamValue := Tokens[1];
+        end
+      end;
+
     'negate':
       Instruction.Operation := opNegate;
 

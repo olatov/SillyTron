@@ -69,13 +69,14 @@ Sets or clears Zero and Sign flags according to the result of the operation.
 
 Syntax:
 ```
-Add <const | var>
+Add <const | var | @Idx>
 ```
 
 Example:
 ```
 Add 1234    // Add 1234 to the accumulator
 Add $foo    // Add the value of $foo variable to the accumulator
+Add @Idx    // Add the value stored in memory at address in the Index register
 ```
 ### Subtract
 
@@ -84,13 +85,51 @@ Sets or clears Zero and Sign flags according to the result of the operation.
 
 Syntax:
 ```
-Subtract <const | var>
+Subtract <const | var | @Idx>
 ```
 
 Example:
 ```
 Subtract 1245    // Subtract 1234 from the accumulator
 Subtract $foo    // Subtract the value of $foo from the accumulator
+Subtract @Idx    // Subtract the value stored in memory at address in the Index register
+```
+
+### Multiply
+
+Multiply the accumulator by a number.
+Sets or clears Zero and Sign flags according to the result of the operation.
+*Note*: there are no overflow checks.
+
+Syntax:
+```
+Multiply <const | var | @Idx>
+```
+
+Example:
+```
+Multiply 1234    // Multiply the accumulator by 1234
+Multiply $foo    // Multiply the accumulator by the value of $foo
+Multiply @Idx    // Multiply the accumulator by the value stored in memory at address in the Index register
+```
+
+### Divide
+
+Divide the accumulator by a number.
+Result is stored in the Accumulator, the remainder is stored in the Index register.
+Sets or clears Zero and Sign flags according to the result of the operation.
+*Note*: An attempt to divide by zero will result in program termination.
+
+Syntax:
+```
+Divide <const | var | @Idx>
+```
+
+Example:
+```
+Divide 1234    // Divide the accumulator by 1234
+Divide $foo    // Divide the accumulator by the value of $foo
+Divide @Idx    // Divide the accumulator by the value stored in memory at address in the Index register
 ```
 
 ### Inc

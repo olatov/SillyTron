@@ -144,6 +144,31 @@ begin
           Result.Lines.Add(Format('subw $%d, %%ax', [Tokens[1].ToInteger()]));
       end;
 
+    'multiply':
+      begin
+        if Tokens[1] = '@idx' then
+          Result.Lines.Add('imulw (%rbx), %ax')
+        else if Tokens[1].StartsWith('$') then
+          Result.Lines.Add(Format('imulw %s(%%rip), %%ax', [Tokens[1].TrimLeft('$')]))
+        else
+          Result.Lines.Add(Format('imulw $%d, %%ax', [Tokens[1].ToInteger()]));
+      end;
+
+    'divide':
+      begin
+        Result.Lines.Add('cwd');
+        if Tokens[1] = '@idx' then
+          Result.Lines.Add('idivw (%rbx)')
+        else if Tokens[1].StartsWith('$') then
+          Result.Lines.Add(Format('idivw %s(%%rip)', [Tokens[1].TrimLeft('$')]))
+        else
+          Result.Lines.AddStrings([
+            Format('movw $%d, %%bx', [Tokens[1].ToInteger()]),
+            'idivw %bx'
+          ]);
+        Result.Lines.Add('movw %dx, %bx');
+      end;
+
     'negate':
       Result.Lines.Add('negw %ax');
 

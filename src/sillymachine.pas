@@ -52,6 +52,7 @@ type
     opPrintString,          // Stdout <- Sequence of chars from memory
                             //   starting with adderss in Accumulator,
                             //   ending with a zero word (null terminated).
+    opInputInteger,         // Acc <- INTEGER(Stdin)
     opSleep,                // Pause for amount of ms written in the Accumlator
     opHalt                  // HF := true
   );
@@ -104,6 +105,7 @@ type
     procedure PrintChar();
     procedure PrintInteger();
     procedure PrintString();
+    procedure InputInteger();
     procedure SleepMs();
     procedure Halt();
     procedure UpdateFlags();
@@ -334,6 +336,12 @@ begin
   Writeln();
 end;
 
+procedure TMachine.InputInteger();
+begin
+  Write('? ');
+  Read(FRegisters.Accumulator);
+end;
+
 procedure TMachine.SleepMs;
 begin
   Sleep(FRegisters.Accumulator);
@@ -382,7 +390,6 @@ var
 begin
   Inc(FCycles);
   Opcode := FMemory[FRegisters.ProgramCounter];
-  //Write(Opcode, ' ');
   Operation := TOperation(Opcode);
   Inc(FRegisters.ProgramCounter);
 
@@ -418,6 +425,7 @@ begin
     opPrintChar: PrintChar();
     opPrintInteger: PrintInteger();
     opPrintString: PrintString();
+    opInputInteger: InputInteger();
     opSleep: SleepMs();
     opHalt: Halt();
   end;

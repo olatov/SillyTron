@@ -380,7 +380,7 @@ Load 1500
 Sleep   // Pause for 1.5 seconds
 ```
 
-## Printing
+## Input / Output
 
 ### PrintChar
 
@@ -428,4 +428,14 @@ var Message string 'Hello from SillyTron'
 ...
 Load @Message  // Loads the address (pointer) to Message string into Accumulator
 PrintString    // Prints 'Hello from SillyTron' and moves ouput to the new line.
+```
+
+### InputInteger
+
+Read an integer value from input and store it in Accumulator.
+The input is read from the standard input stream.
+
+Syntax:
+```
+InputInteger
 ```

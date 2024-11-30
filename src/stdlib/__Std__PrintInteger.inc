@@ -1,33 +1,33 @@
 __Std__PrintInteger:
-  push %rax
-  push %rbx
-  test %ax, %ax
+  pushq %rax
+  pushq %rbx
+  testw %ax, %ax
   jns __Std__PrintInteger__ProcessNumber
-  neg %ax
-  push %rax
+  negw %ax
+  pushq %rax
   movb $'-', %al
   call __Std__PrintChar
-  pop %rax
+  popq %rax
 __Std__PrintInteger__ProcessNumber:
-  xor %rcx, %rcx
+  xorq %rcx, %rcx
 __Std__PrintInteger__ReverseDigits:
-  xor %dx, %dx
+  xorw %dx, %dx
   movw $10, %bx
-  div %bx
-  push %rdx
-  inc %cx
-  test %ax, %ax
+  divw %bx
+  pushq %rdx
+  incw %cx
+  testw %ax, %ax
   jnz __Std__PrintInteger__ReverseDigits
 __Std__PrintInteger__PrintDigits:
-  pop %rdx
+  popq %rdx
   movb %dl, %al
   addb $'0', %al
   push %rcx
   call __Std__PrintChar
-  pop %rcx
+  popq %rcx
   loop __Std__PrintInteger__PrintDigits
   movb $10, %al
   call __Std__PrintChar
-  pop %rbx
-  pop %rax
+  popq %rbx
+  popq %rax
   ret

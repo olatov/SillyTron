@@ -99,7 +99,7 @@ begin
 
     'load':
       begin
-        Result.Lines.Add('xor %rax, %rax');
+        Result.Lines.Add('xorq %rax, %rax');
         if Tokens[1] = 'idx' then
           Result.Lines.Add('movq %rbx, %rax')
         else if Tokens[1] = '@idx' then
@@ -145,16 +145,16 @@ begin
       end;
 
     'negate':
-      Result.Lines.Add('neg %ax');
+      Result.Lines.Add('negw %ax');
 
     'inc':
       begin
         if Length(Tokens) < 2 then
           raise Exception.Create('Missing operand.');
         if Tokens[1] = 'acc' then
-          Result.Lines.Add('inc %ax')
+          Result.Lines.Add('incw %ax')
         else if Tokens[1] = 'idx' then
-          Result.Lines.Add('inc %bx')
+          Result.Lines.Add('incw %bx')
         else
           raise Exception.Create(Format('Invalid argument: %s.', [Tokens[1]]));
       end;
@@ -164,9 +164,9 @@ begin
         if Length(Tokens) < 2 then
           raise Exception.Create('Missing operand.');
         if Tokens[1] = 'acc' then
-          Result.Lines.Add('dec %ax')
+          Result.Lines.Add('decw %ax')
         else if Tokens[1] = 'idx' then
-          Result.Lines.Add('dec %bx')
+          Result.Lines.Add('decw %bx')
         else
           raise Exception.Create(Format('Invalid argument: %s.', [Tokens[1]]));
       end;
@@ -187,10 +187,10 @@ begin
       Result.Lines.Add(Format('jns %s', [Tokens[1]]));
 
     'push':
-      Result.Lines.Add('push %rax');
+      Result.Lines.Add('pushq %rax');
 
     'pop':
-      Result.Lines.Add('pop %rax');
+      Result.Lines.Add('popq %rax');
 
     'call':
       Result.Lines.Add(Format('call %s', [Tokens[1]]));
@@ -216,6 +216,12 @@ begin
         Result.StandardLibraryDependencies := ['__Std__PrintString'];
       end;
 
+    'inputinteger':
+      begin
+        Result.Lines.Add('call __Std__InputInteger');
+        Result.StandardLibraryDependencies := ['__Std__InputInteger'];
+      end;
+
     'sleep':
       begin
         Result.Lines.Add('call __Std__Sleep');
@@ -227,7 +233,7 @@ begin
         // Syscall: exit (syscall number 60)
         Result.Lines.AddStrings([
           'movl $60, %eax',
-          'xor %edi, %edi',
+          'xorl %edi, %edi',
           'syscall'
         ]);
       end;
@@ -382,15 +388,20 @@ function TSillyAsmToGasProcessor.ResolveInternalDependencies(
   ARoutines: TStringList): TStringList;
 var
   RoutineName: String;
+  OldResultCount: Integer;
 begin
   Result := TStringList.Create();
+  Result.Sorted := true;
   Result.Duplicates := TDuplicates.dupIgnore;
 
-  for RoutineName in ARoutines do
-    case RoutineName of
-      '__Std__PrintString', '__Std__PrintInteger':
-        Result.Add('__Std__PrintChar');
-    end;
+  repeat
+    OldResultCount := Result.Count;
+    for RoutineName in ARoutines do
+      case RoutineName of
+        '__Std__PrintString', '__Std__PrintInteger', '__Std__InputInteger':
+          Result.Add('__Std__PrintChar');
+      end;
+  until Result.Count = OldResultCount;
 end;
 
 constructor TSillyAsmToGasProcessor.Create(

@@ -1,14 +1,14 @@
 __Std__Sleep:
-  push %rax
+  pushq %rax
   lea __Std__TimeSpec(%rip), %rdi
-  xor %rsi, %rsi
-  xor %rcx, %rcx
+  xorq %rsi, %rsi
+  xorq %rcx, %rcx
   movw %ax, %cx
 __Std__Sleep__Loop:
-  push %rcx
+  pushq %rcx
   movq $35, %rax
   syscall
-  pop %rcx
+  popq %rcx
   loop __Std__Sleep__Loop
-  pop %rax
+  popq %rax
   ret

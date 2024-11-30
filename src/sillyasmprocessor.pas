@@ -317,6 +317,9 @@ begin
     'printstring':
       Instruction.Operation := opPrintString;
 
+    'inputinteger':
+      Instruction.Operation := opInputInteger;
+
     'sleep':
       Instruction.Operation := opSleep;
 

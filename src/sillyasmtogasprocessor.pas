@@ -1,4 +1,4 @@
-unit SillyAsmToNasmProcessor;
+unit sillyasmtogasprocessor;
 
 {$mode ObjFPC}{$H+}
 
@@ -32,9 +32,9 @@ type
     StandardLibraryDependencies: TStringArray;
   end;
 
-  { TSillyAsmToNasmProcessor }
+  { TSillyAsmToGasProcessor }
 
-  TSillyAsmToNasmProcessor = class
+  TSillyAsmToGasProcessor = class
   private
     FVerbose: Boolean;
     FInputStream: TStream;
@@ -53,23 +53,10 @@ type
 
 implementation
 
-{$R sillyasmtonasm.rc}
+{$R sillyasmtogas.rc}
 
 uses
   Types, StrUtils, StreamEx, SillyMachine;
-
-type
-  TParamType = (
-    ptNone,
-    ptConst,
-    ptReference
-  );
-
-  TInstruction = record
-    Operation: TOperation;
-    ParamType: TParamType;
-    ParamValue: String;
-  end;
 
 { ESillyAsmError }
 
@@ -81,9 +68,9 @@ begin
   FLineContents := ALineContents;
 end;
 
-{ TSillyAsmToNasmProcessor }
+{ TSillyAsmToGasProcessor }
 
-function TSillyAsmToNasmProcessor.ProcessLine(ALine: String;
+function TSillyAsmToGasProcessor.ProcessLine(ALine: String;
   ALineNumber: LongWord): TCodeChunk;
 var
   Tokens: TStringDynArray;
@@ -112,27 +99,27 @@ begin
 
     'load':
       begin
-        Result.Lines.Add('xor rax, rax');
+        Result.Lines.Add('xor %rax, %rax');
         if Tokens[1] = 'idx' then
-          Result.Lines.Add('mov rax, rbx')
+          Result.Lines.Add('movq %rbx, %rax')
         else if Tokens[1] = '@idx' then
-          Result.Lines.Add('mov ax, [rbx]')
+          Result.Lines.Add('movw (%rbx), %ax')
         else if Tokens[1].StartsWith('$') then
-          Result.Lines.Add('mov ax, [%s]', [Tokens[1].TrimLeft('$')])
+          Result.Lines.Add('movw %s(%%rip), %%ax', [Tokens[1].TrimLeft('$')])
         else if Tokens[1].StartsWith('@') then
-          Result.Lines.Add(Format('lea rax, [%s]', [Tokens[1].TrimLeft('@')]))
+          Result.Lines.Add(Format('leaq %s(%%rip), %%rax', [Tokens[1].TrimLeft('@')]))
         else
-          Result.Lines.Add(Format('mov ax, %d', [Tokens[1].ToInteger()]));
+          Result.Lines.Add(Format('movw $%d, %%ax', [Tokens[1].ToInteger()]));
       end;
 
     'store':
       begin
         if Tokens[1] = 'idx' then
-          Result.Lines.Add('mov rbx, rax')
+          Result.Lines.Add('movq %rax, %rbx')
         else if Tokens[1] = '@idx' then
-          Result.Lines.Add('mov [rbx], ax')
+          Result.Lines.Add('movw %ax, (%rbx)')
         else if Tokens[1].StartsWith('$') then
-          Result.Lines.Add('mov [%s], ax', [Tokens[1].TrimLeft('$')])
+          Result.Lines.Add('movw %%ax, %s(%%rip)', [Tokens[1].TrimLeft('$')])
         else
           raise Exception.Create('Missing operand.');
       end;
@@ -140,34 +127,34 @@ begin
     'add':
       begin
         if Tokens[1] = '@idx' then
-          Result.Lines.Add('add ax, [rbx]')
+          Result.Lines.Add('addw (%rbx), %ax')
         else if Tokens[1].StartsWith('$') then
-          Result.Lines.Add(Format('add ax, [%s]', [Tokens[1].TrimLeft('$')]))
+          Result.Lines.Add(Format('addw %s(%%rip), %%ax', [Tokens[1].TrimLeft('$')]))
         else
-          Result.Lines.Add(Format('add ax, %d', [Tokens[1].ToInteger()]));
+          Result.Lines.Add(Format('addw $%d, %%ax', [Tokens[1].ToInteger()]));
       end;
 
     'subtract':
       begin
         if Tokens[1] = '@idx' then
-          Result.Lines.Add('sub ax, [rbx]')
+          Result.Lines.Add('subw (%rbx), %ax')
         else if Tokens[1].StartsWith('$') then
-          Result.Lines.Add(Format('sub ax, [%s]', [Tokens[1].TrimLeft('$')]))
+          Result.Lines.Add(Format('subw %s(%%rbx), %ax', [Tokens[1].TrimLeft('$')]))
         else
-          Result.Lines.Add(Format('sub ax, %d', [Tokens[1].ToInteger()]));
+          Result.Lines.Add(Format('subw $%d, %%ax', [Tokens[1].ToInteger()]));
       end;
 
     'negate':
-      Result.Lines.Add('neg ax');
+      Result.Lines.Add('neg %ax');
 
     'inc':
       begin
         if Length(Tokens) < 2 then
           raise Exception.Create('Missing operand.');
         if Tokens[1] = 'acc' then
-          Result.Lines.Add('inc ax')
+          Result.Lines.Add('inc %ax')
         else if Tokens[1] = 'idx' then
-          Result.Lines.Add('inc bx')
+          Result.Lines.Add('inc %bx')
         else
           raise Exception.Create(Format('Invalid argument: %s.', [Tokens[1]]));
       end;
@@ -177,9 +164,9 @@ begin
         if Length(Tokens) < 2 then
           raise Exception.Create('Missing operand.');
         if Tokens[1] = 'acc' then
-          Result.Lines.Add('dec ax')
+          Result.Lines.Add('dec %ax')
         else if Tokens[1] = 'idx' then
-          Result.Lines.Add('dec bx')
+          Result.Lines.Add('dec %bx')
         else
           raise Exception.Create(Format('Invalid argument: %s.', [Tokens[1]]));
       end;
@@ -200,10 +187,10 @@ begin
       Result.Lines.Add(Format('jns %s', [Tokens[1]]));
 
     'push':
-      Result.Lines.Add('push rax');
+      Result.Lines.Add('push %rax');
 
     'pop':
-      Result.Lines.Add('pop rax');
+      Result.Lines.Add('pop %rax');
 
     'call':
       Result.Lines.Add(Format('call %s', [Tokens[1]]));
@@ -239,8 +226,8 @@ begin
       begin
         // Syscall: exit (syscall number 60)
         Result.Lines.AddStrings([
-          'mov eax, 60',
-          'xor edi, edi',
+          'movl $60, %eax',
+          'xor %edi, %edi',
           'syscall'
         ]);
       end;
@@ -251,13 +238,13 @@ begin
 
         case Tokens[2] of
           'integer':
-            Result.Lines.Add(Format('%s dw %d',
+            Result.Lines.Add(Format('%s: .word %d',
               [Tokens[1], Tokens[3].ToInteger()]));
 
           'string':
             begin
               StringLiteral := ExtractDelimited(2, ALine, ['''']);
-              Result.Lines.Add(Format('%s db "%s", 0',
+              Result.Lines.Add(Format('%s: .asciz "%s"',
                 [Tokens[1], StringLiteral]));
             end;
         end;
@@ -268,7 +255,7 @@ begin
   end;
 end;
 
-procedure TSillyAsmToNasmProcessor.ProcessLines();
+procedure TSillyAsmToGasProcessor.ProcessLines();
 var
   InputReader: TStreamReader;
   OutputWriter: TStreamWriter;
@@ -289,7 +276,7 @@ begin
 
   // Text (code) section
   if FVerbose then
-    OutputWriter.WriteLine(';; Text (code) section');
+    OutputWriter.WriteLine('# Text (code) section');
   OutputWriter.WriteLine(GetResourceContents('SRC_SECTION_TEXT'));
 
   try
@@ -311,7 +298,7 @@ begin
               begin
                 if FVerbose then
                 begin
-                  OutputWriter.WriteLine(';; [%d]: %s', [LineCounter, Line]);
+                  OutputWriter.WriteLine('# [%d]: %s', [LineCounter, Line]);
                   OutputWriter.WriteLine(CodeChunk.Lines.Text);
                 end
                 else
@@ -334,7 +321,7 @@ begin
     if StandardLibraryDependencies.Count > 0 then
     begin
       if FVerbose then
-        OutputWriter.WriteLine(';; Standard Library routines');
+        OutputWriter.WriteLine('# Standard Library routines');
 
       InternalDependencies := ResolveInternalDependencies(StandardLibraryDependencies);
       StandardLibraryDependencies.AddStrings(InternalDependencies);
@@ -346,7 +333,7 @@ begin
 
     // Data section
     if FVerbose then
-      OutputWriter.WriteLine(';; Data section');
+      OutputWriter.WriteLine('# Data section');
     OutputWriter.WriteLine(GetResourceContents('SRC_SECTION_DATA'));
 
     if DataSection.Count > 0 then
@@ -359,7 +346,7 @@ begin
   end;
 end;
 
-function TSillyAsmToNasmProcessor.GetStandardLibraryRoutine(
+function TSillyAsmToGasProcessor.GetStandardLibraryRoutine(
   AName: String): String;
 var
   ResourceName: String;
@@ -374,7 +361,7 @@ begin
   end;
 end;
 
-function TSillyAsmToNasmProcessor.GetResourceContents(
+function TSillyAsmToGasProcessor.GetResourceContents(
   AResourceName: String): String;
 var
   ResourceStream: TResourceStream;
@@ -391,7 +378,7 @@ begin
   end;
 end;
 
-function TSillyAsmToNasmProcessor.ResolveInternalDependencies(
+function TSillyAsmToGasProcessor.ResolveInternalDependencies(
   ARoutines: TStringList): TStringList;
 var
   RoutineName: String;
@@ -406,7 +393,7 @@ begin
     end;
 end;
 
-constructor TSillyAsmToNasmProcessor.Create(
+constructor TSillyAsmToGasProcessor.Create(
   const AInputStream, AOutputStream: TStream;
   AVerbose: Boolean = false);
 begin
@@ -415,7 +402,7 @@ begin
   FVerbose := AVerbose;
 end;
 
-procedure TSillyAsmToNasmProcessor.Run();
+procedure TSillyAsmToGasProcessor.Run();
 begin
   ProcessLines();
 end;

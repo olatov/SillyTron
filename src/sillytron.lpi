@@ -102,9 +102,9 @@
         <UnitName Value="SillyAsm"/>
       </Unit>
       <Unit>
-        <Filename Value="sillyasmtonasm.lpr"/>
+        <Filename Value="sillyasmtogas.lpr"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="SillyAsmToNasm"/>
+        <UnitName Value="SillyAsmToGas"/>
       </Unit>
       <Unit>
         <Filename Value="sillyasmprocessor.pas"/>
@@ -112,9 +112,8 @@
         <UnitName Value="SillyAsmProcessor"/>
       </Unit>
       <Unit>
-        <Filename Value="sillyasmtonasmprocessor.pas"/>
+        <Filename Value="sillyasmtogasprocessor.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="SillyAsmToNasmProcessor"/>
       </Unit>
       <Unit>
         <Filename Value="stdlib/data.inc"/>
@@ -125,7 +124,7 @@
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="sillyasmtonasm.rc"/>
+        <Filename Value="sillyasmtogas.rc"/>
         <IsPartOfProject Value="True"/>
       </Unit>
     </Units>

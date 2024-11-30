@@ -1,5 +1,5 @@
-section .data
-  __Std__CharBuf db 0
+.section .data
+  __Std__CharBuf: .byte 0
   __Std__TimeSpec:
-    dq 0
-    dq 1000000
+    .quad 0
+    .quad 1000000

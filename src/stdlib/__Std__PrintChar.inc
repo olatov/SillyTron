@@ -1,10 +1,10 @@
 __Std__PrintChar:
-  push rax
-  mov [__Std__CharBuf], al
-  mov rax, 1
-  mov rdi, rax
-  mov rsi, __Std__CharBuf
-  mov rdx, rax
+  push %rax
+  movb %al, __Std__CharBuf(%rip)
+  movq $1, %rax
+  movq %rax, %rdi
+  leaq __Std__CharBuf(%rip), %rsi
+  movq %rax, %rdx
   syscall
-  pop rax
+  pop %rax
   ret

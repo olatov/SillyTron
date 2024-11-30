@@ -1,15 +1,15 @@
-program SillyAsmToNasm;
+program SillyAsmToGas;
 
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, StrUtils, StreamEx, SillyAsmToNasmProcessor;
+  Classes, SysUtils, StrUtils, StreamEx, SillyAsmToGasProcessor;
 
 var
   InputFilename: String;
   InputStream: TFileStream;
   OutputStream: TFileStream;
-  Processor: TSillyAsmToNasmProcessor;
+  Processor: TSillyAsmToGasProcessor;
   Verbose: Boolean;
 
 begin
@@ -28,11 +28,11 @@ begin
 
   InputStream := TFileStream.Create(InputFilename, fmOpenRead);
   OutputStream := TFileStream.Create(
-    ChangeFileExt(InputFilename, '.asm'), fmCreate);
+    ChangeFileExt(InputFilename, '.s'), fmCreate);
   Verbose := (ParamStr(2) = '-v');
 
   try
-    Processor := TSillyAsmToNasmProcessor.Create(
+    Processor := TSillyAsmToGasProcessor.Create(
       InputStream, OutputStream, Verbose);
     try
       Processor.Run();

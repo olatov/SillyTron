@@ -1,3 +1,3 @@
-section .text
-global _start
+.section .text
+.global _start
 _start:

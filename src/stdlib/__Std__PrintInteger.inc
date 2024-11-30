@@ -4,8 +4,10 @@ __Std__PrintInteger:
   test ax, ax
   jns __Std__PrintInteger__ProcessNumber
   neg ax
+  push rax
   mov al, '-'
   call __Std__PrintChar
+  pop rax
 __Std__PrintInteger__ProcessNumber:
   xor rcx, rcx
 __Std__PrintInteger__ReverseDigits:

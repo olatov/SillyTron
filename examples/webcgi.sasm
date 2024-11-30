@@ -1,0 +1,23 @@
+Main:
+    Call WriteHeader
+    Call WriteContent
+    Halt
+
+WriteHeader:
+    Load @Header
+    PrintString
+    Load 10
+    PrintChar
+    Return
+
+WriteContent:
+    Load @Content
+    PrintString
+    PrintString
+    PrintString
+    PrintString
+    Return
+
+Data:
+    var Header string 'Content-Type: text/plain'
+    var Content string 'Hello from SillyTron!'

@@ -1,0 +1,5 @@
+Load @Message
+PrintString
+Halt
+
+Var Message String 'Hello from SillyTron!'

@@ -36,7 +36,7 @@ $ as -o hello.o examples/hello.s
 
 $ ld -o hello hello.o
 
-$ file hello  # (this step is optional)
+$ file hello  # (this step is just for information)
 hello: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, not stripped
 
 $ ./hello

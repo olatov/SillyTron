@@ -7,3 +7,4 @@ bin/
 src/backup
 src/sillytron
 src/sillyasm
+src/sillyc

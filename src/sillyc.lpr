@@ -50,6 +50,7 @@ type
     FCodeAddress: Integer;
     FLabelCounter: Integer;
     FCurrentFunction: String;
+    FCurrentFunctionHasReturn: Boolean;
     
   private
     procedure AddToken(TokenType: TTokenType; const Value: String; Line, Column: Integer);
@@ -102,6 +103,7 @@ begin
   FDataAddress := 0;
   FCodeAddress := 0;
   FLabelCounter := 0;
+  FCurrentFunctionHasReturn := False;
 end;
 
 destructor TSillyCCompiler.Destroy;
@@ -442,7 +444,7 @@ begin
   
   while GetCurrentToken.TokenType <> ttEOF do
   begin
-    if (GetCurrentToken.Value = 'int') then
+    if (GetCurrentToken.Value = 'int') or (GetCurrentToken.Value = 'void') then
       ParseFunction
     else
       NextToken;
@@ -515,7 +517,11 @@ procedure TSillyCCompiler.ParseFunction;
 var
   FuncName: String;
 begin
-  ExpectToken(ttKeyword, 'int');
+  // Accept 'int' or 'void' function return type
+  if (GetCurrentToken.Value <> 'int') and (GetCurrentToken.Value <> 'void') then
+    raise Exception.CreateFmt('Expected function return type but found %s at line %d', [GetCurrentToken.Value, GetCurrentToken.Line]);
+  // consume return type
+  NextToken;
   FuncName := GetCurrentToken.Value;
   ExpectToken(ttIdentifier);
   AddSymbol(FuncName, stFunction);
@@ -529,14 +535,19 @@ begin
   ExpectToken(ttDelimiter, '{');
   // parse local declarations first
   ParseDeclarations;
+  // reset explicit-return tracker for this function
+  FCurrentFunctionHasReturn := False;
 
   while (GetCurrentToken.Value <> '}') and (GetCurrentToken.TokenType <> ttEOF) do
   begin
     ParseStatement;
   end;
-  
+
   ExpectToken(ttDelimiter, '}');
-  Emit('  Return');
+  // Emit a Return for normal functions only if they didn't contain
+  // an explicit return statement which already emitted a Return.
+  if (FuncName <> 'main') and (not FCurrentFunctionHasReturn) then
+    Emit('  Return');
   // clear function context
   FCurrentFunction := '';
 end;
@@ -544,11 +555,43 @@ end;
 procedure TSillyCCompiler.ParseStatement;
 var
   Token: TToken;
+  VarName: String;
+  Symbol: TSymbol;
 begin
   Token := GetCurrentToken;
   
   if Token.Value = 'if' then
     ParseIfStatement
+  else if Token.Value = 'int' then
+  begin
+    // Declaration inside function body (e.g., int x = expr;)
+    ExpectToken(ttKeyword, 'int');
+    VarName := GetCurrentToken.Value;
+    ExpectToken(ttIdentifier);
+    if FCurrentFunction <> '' then
+    begin
+      AddSymbol(VarName, stVariable);
+      AddTempVariable(FCurrentFunction + '_' + VarName);
+    end
+    else
+    begin
+      AddSymbol(VarName, stVariable);
+      AddTempVariable(VarName);
+    end;
+
+    if GetCurrentToken.Value = '=' then
+    begin
+      ExpectToken(ttOperator, '=');
+      ParseExpression;
+      Symbol := FindSymbol(VarName);
+      if Symbol.Name <> '' then
+        Emit('  Store $' + Symbol.Name)
+      else
+        Emit('  Store $' + VarName);
+    end;
+
+    ExpectToken(ttDelimiter, ';');
+  end
   else if Token.Value = 'while' then
     ParseWhileStatement
   else if Token.Value = 'return' then
@@ -556,7 +599,24 @@ begin
   else if Token.Value = 'printf' then
     ParsePrintStatement
   else if Token.TokenType = ttIdentifier then
-    ParseAssignment
+  begin
+    // Distinguish between function call statements and assignments
+    if PeekToken.Value = '(' then
+    begin
+      // function call as a statement: foo();
+      // consume identifier and parentheses
+      Token := GetCurrentToken;
+      ExpectToken(ttIdentifier);
+      ExpectToken(ttDelimiter, '(');
+      ExpectToken(ttDelimiter, ')');
+      // Emit call
+      Emit('  Call ' + Token.Value);
+      // expect semicolon
+      ExpectToken(ttDelimiter, ';');
+    end
+    else
+      ParseAssignment;
+  end
   else
     NextToken;
 end;
@@ -802,12 +862,26 @@ begin
   end
   else if Token.TokenType = ttIdentifier then
   begin
-    Symbol := FindSymbol(Token.Value);
-    if Symbol.Name <> '' then
-      Emit('  Load $' + Symbol.Name)
+    // function call in an expression: ident()
+    if PeekToken.Value = '(' then
+    begin
+      // Call the function and leave return value in Acc
+      Symbol := FindSymbol(Token.Value);
+      // consume identifier and parentheses
+      ExpectToken(ttIdentifier);
+      ExpectToken(ttDelimiter, '(');
+      ExpectToken(ttDelimiter, ')');
+      Emit('  Call ' + Token.Value);
+    end
     else
-      Emit('  Load $' + Token.Value);
-    NextToken;
+    begin
+      Symbol := FindSymbol(Token.Value);
+      if Symbol.Name <> '' then
+        Emit('  Load $' + Symbol.Name)
+      else
+        Emit('  Load $' + Token.Value);
+      NextToken;
+    end;
   end
   else if Token.Value = '(' then
   begin
@@ -914,7 +988,16 @@ begin
   ExpectToken(ttKeyword, 'return');
   ParseExpression;
   ExpectToken(ttDelimiter, ';');
-  Emit('  Halt');
+  // If we're returning from 'main' (entered via Jump), halt the machine.
+  // Otherwise emit a Return to go back to the caller.
+  if FCurrentFunction = 'main' then
+    Emit('  Halt')
+  else
+  begin
+    Emit('  Return');
+    // mark that this function already emitted a Return
+    FCurrentFunctionHasReturn := True;
+  end;
 end;
 
 var

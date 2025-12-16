@@ -564,6 +564,9 @@ var
   Token: TToken;
   VarName: String;
   Symbol: TSymbol;
+  TempName: String;
+  Op: String;
+  Temp2: String;
 begin
   Token := GetCurrentToken;
   
@@ -607,6 +610,49 @@ begin
     ParseReturnStatement
   else if Token.Value = 'printf' then
     ParsePrintStatement
+  else if (Token.TokenType = ttOperator) and ((Token.Value = '++') or (Token.Value = '--')) then
+  begin
+    // pre-increment/decrement statement: ++i; or --i;
+    if Token.Value = '++' then
+      NextToken
+    else
+      NextToken;
+    VarName := GetCurrentToken.Value;
+    ExpectToken(ttIdentifier);
+    Symbol := FindSymbol(VarName);
+    // generate temp and emit increment/decrement
+    TempName := GenerateLabel + '_temp';
+    AddTempVariable(TempName);
+    if Token.Value = '++' then
+    begin
+      if Symbol.Name <> '' then
+        Emit('  Load $' + Symbol.Name)
+      else
+        Emit('  Load $' + VarName);
+      Emit('  Store $' + TempName);
+      Emit('  Load 1');
+      Emit('  Add $' + TempName);
+      if Symbol.Name <> '' then
+        Emit('  Store $' + Symbol.Name)
+      else
+        Emit('  Store $' + VarName);
+    end
+    else
+    begin
+      if Symbol.Name <> '' then
+        Emit('  Load $' + Symbol.Name)
+      else
+        Emit('  Load $' + VarName);
+      Emit('  Store $' + TempName);
+      Emit('  Load 1');
+      Emit('  Subtract $' + TempName);
+      if Symbol.Name <> '' then
+        Emit('  Store $' + Symbol.Name)
+      else
+        Emit('  Store $' + VarName);
+    end;
+    ExpectToken(ttDelimiter, ';');
+  end
   else if Token.TokenType = ttIdentifier then
   begin
     // Distinguish between function call statements and assignments
@@ -621,6 +667,34 @@ begin
       // Emit call
       Emit('  Call ' + Token.Value);
       // expect semicolon
+      ExpectToken(ttDelimiter, ';');
+    end
+    else if (PeekToken.Value = '++') or (PeekToken.Value = '--') then
+    begin
+      // post-increment/decrement statement: i++; or i--;
+      VarName := GetCurrentToken.Value;
+      Symbol := FindSymbol(VarName);
+      ExpectToken(ttIdentifier);
+      // consume ++/--
+      Op := GetCurrentToken.Value;
+      ExpectToken(ttOperator);
+      // generate temp and emit
+      Temp2 := GenerateLabel + '_temp';
+      AddTempVariable(Temp2);
+      if Symbol.Name <> '' then
+        Emit('  Load $' + Symbol.Name)
+      else
+        Emit('  Load $' + VarName);
+      Emit('  Store $' + Temp2);
+      Emit('  Load 1');
+      if Op = '++' then
+        Emit('  Add $' + Temp2)
+      else
+        Emit('  Subtract $' + Temp2);
+      if Symbol.Name <> '' then
+        Emit('  Store $' + Symbol.Name)
+      else
+        Emit('  Store $' + VarName);
       ExpectToken(ttDelimiter, ';');
     end
     else
@@ -833,6 +907,10 @@ var
   Token: TToken;
   Symbol: TSymbol;
   LTrue, LEnd: String;
+  VarName: String;
+  TempName: String;
+  Op: String;
+  TempPre: String;
 begin
   Token := GetCurrentToken;
   // Handle unary minus
@@ -871,7 +949,7 @@ begin
   end
   else if Token.TokenType = ttIdentifier then
   begin
-    // function call in an expression: ident()
+    // handle function call in an expression: ident()
     if PeekToken.Value = '(' then
     begin
       // Call the function and leave return value in Acc
@@ -884,13 +962,70 @@ begin
     end
     else
     begin
+      // support post-increment/post-decrement: ident++ or ident--
       Symbol := FindSymbol(Token.Value);
-      if Symbol.Name <> '' then
-        Emit('  Load $' + Symbol.Name)
+      // consume identifier
+      VarName := Token.Value;
+      ExpectToken(ttIdentifier);
+      if (GetCurrentToken.Value = '++') or (GetCurrentToken.Value = '--') then
+      begin
+        // post inc/dec: preserve old value in Acc, update variable
+        TempName := GenerateLabel + '_temp';
+        AddTempVariable(TempName);
+        if Symbol.Name <> '' then
+          Emit('  Load $' + Symbol.Name)
+        else
+          Emit('  Load $' + VarName);
+        Emit('  Store $' + TempName);
+        // consume operator
+        Op := GetCurrentToken.Value;
+        ExpectToken(ttOperator);
+        Emit('  Load 1');
+        if Op = '++' then
+          Emit('  Add $' + TempName)
+        else
+          Emit('  Subtract $' + TempName);
+        if Symbol.Name <> '' then
+          Emit('  Store $' + Symbol.Name)
+        else
+          Emit('  Store $' + VarName);
+        // restore original value into Acc (post returns old value)
+        Emit('  Load $' + TempName);
+      end
       else
-        Emit('  Load $' + Token.Value);
-      NextToken;
+      begin
+        if Symbol.Name <> '' then
+          Emit('  Load $' + Symbol.Name)
+        else
+          Emit('  Load $' + VarName);
+      end;
     end;
+  end
+  else if (Token.TokenType = ttOperator) and ((Token.Value = '++') or (Token.Value = '--')) then
+  begin
+    // pre-increment/decrement in expression: ++ident or --ident
+    Op := Token.Value;
+    NextToken; // consume ++/--
+    VarName := GetCurrentToken.Value;
+    Symbol := FindSymbol(VarName);
+    ExpectToken(ttIdentifier);
+    TempPre := GenerateLabel + '_temp';
+    AddTempVariable(TempPre);
+    if Symbol.Name <> '' then
+      Emit('  Load $' + Symbol.Name)
+    else
+      Emit('  Load $' + VarName);
+    Emit('  Store $' + TempPre);
+    Emit('  Load 1');
+    if Op = '++' then
+      Emit('  Add $' + TempPre)
+    else
+      Emit('  Subtract $' + TempPre);
+    if Symbol.Name <> '' then
+      Emit('  Store $' + Symbol.Name)
+    else
+      Emit('  Store $' + VarName);
+    // Acc already contains new value after Add/Subtract
   end
   else if Token.Value = '(' then
   begin

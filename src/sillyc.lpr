@@ -49,6 +49,7 @@ type
     FDataAddress: Integer;
     FCodeAddress: Integer;
     FLabelCounter: Integer;
+    FCurrentFunction: String;
     
   private
     procedure AddToken(TokenType: TTokenType; const Value: String; Line, Column: Integer);
@@ -78,7 +79,8 @@ type
     procedure AddTempVariable(const Name: String);
     procedure AddStringVariable(const Name, Value: String);
     procedure EmitTempVariables;
-    
+
+    // current function context for local variables
     procedure Emit(const Instruction: String);
     procedure EmitLabel(const LabelName: String);
     procedure EmitComment(const Comment: String);
@@ -277,8 +279,8 @@ var
 begin
   Token := GetCurrentToken;
   if Token.TokenType <> TokenType then
-    raise Exception.CreateFmt('Expected token type %d but found %d at line %d', 
-      [Ord(TokenType), Ord(Token.TokenType), Token.Line]);
+    raise Exception.CreateFmt('Expected token type %d but found %d ("%s") at line %d', 
+      [Ord(TokenType), Ord(Token.TokenType), Token.Value, Token.Line]);
   
   if (ExpectedValue <> '') and (Token.Value <> ExpectedValue) then
     raise Exception.CreateFmt('Expected "%s" but found "%s" at line %d', 
@@ -290,8 +292,14 @@ end;
 function TSillyCCompiler.AddSymbol(const Name: String; SymbolType: TSymbolType): Word;
 var
   Symbol: TSymbol;
+  StoredName: String;
 begin
-  Symbol.Name := Name;
+  // For variables inside a function, store them with a function prefix
+  if (SymbolType = stVariable) and (FCurrentFunction <> '') then
+    StoredName := FCurrentFunction + '_' + Name
+  else
+    StoredName := Name;
+  Symbol.Name := StoredName;
   Symbol.SymbolType := SymbolType;
   Symbol.IsDefined := False;
   
@@ -305,7 +313,7 @@ begin
     Symbol.Address := FCodeAddress;
   end;
   
-  FSymbols.Add(Name + '=' + IntToStr(Symbol.Address));
+  FSymbols.Add(Symbol.Name + '=' + IntToStr(Symbol.Address));
   Result := Symbol.Address;
 end;
 
@@ -351,8 +359,22 @@ end;
 function TSillyCCompiler.FindSymbol(const Name: String): TSymbol;
 var
   Index: Integer;
+  PrefName: String;
 begin
   Result.Name := '';
+  // First try function-prefixed name for locals
+  if FCurrentFunction <> '' then
+  begin
+    PrefName := FCurrentFunction + '_' + Name;
+    Index := FSymbols.IndexOfName(PrefName);
+    if Index >= 0 then
+    begin
+      Result.Name := PrefName;
+      Result.Address := StrToIntDef(FSymbols.ValueFromIndex[Index], 0);
+      Exit;
+    end;
+  end;
+
   Index := FSymbols.IndexOfName(Name);
   if Index >= 0 then
   begin
@@ -435,9 +457,17 @@ var
   NextTokenValue: String;
   TempPos: Integer;
   AfterNextToken: String;
+  Symbol: TSymbol;
 begin
-  while GetCurrentToken.Value = 'int' do
+  while True do
   begin
+    // Skip any comments before declarations
+    while GetCurrentToken.TokenType = ttComment do
+      NextToken;
+
+    if GetCurrentToken.Value <> 'int' then
+      Break;
+
     // Look ahead to see if this is a function or variable
     TempPos := FCurrentToken;
     NextToken; // Skip 'int'
@@ -445,16 +475,37 @@ begin
     NextToken; // Get what comes after identifier
     AfterNextToken := GetCurrentToken.Value;
     FCurrentToken := TempPos; // Reset position
-    
+
     if AfterNextToken = '(' then
       Break; // This is a function definition, not a variable declaration
-      
 
     ExpectToken(ttKeyword, 'int');
     VarName := GetCurrentToken.Value;
     ExpectToken(ttIdentifier);
-    AddSymbol(VarName, stVariable);
-    AddTempVariable(VarName); // Add to temp vars for consistent emission
+    // If inside a function, store local variable under function-prefixed name
+    if FCurrentFunction <> '' then
+    begin
+      AddSymbol(VarName, stVariable);
+      AddTempVariable(FCurrentFunction + '_' + VarName);
+    end
+    else
+    begin
+      AddSymbol(VarName, stVariable);
+      AddTempVariable(VarName); // Add to temp vars for consistent emission
+    end;
+
+    // Optional initializer: handle `= <expression>` and emit store
+    if GetCurrentToken.Value = '=' then
+    begin
+      ExpectToken(ttOperator, '=');
+      ParseExpression;
+      Symbol := FindSymbol(VarName);
+      if Symbol.Name <> '' then
+        Emit('  Store $' + Symbol.Name)
+      else
+        Emit('  Store $' + VarName);
+    end;
+
     ExpectToken(ttDelimiter, ';');
   end;
   Emit('');
@@ -468,13 +519,17 @@ begin
   FuncName := GetCurrentToken.Value;
   ExpectToken(ttIdentifier);
   AddSymbol(FuncName, stFunction);
+  // set current function context for local variables
+  FCurrentFunction := FuncName;
   Emit('');
   Emit(FuncName + ':');
   
   ExpectToken(ttDelimiter, '(');
   ExpectToken(ttDelimiter, ')');
   ExpectToken(ttDelimiter, '{');
-  
+  // parse local declarations first
+  ParseDeclarations;
+
   while (GetCurrentToken.Value <> '}') and (GetCurrentToken.TokenType <> ttEOF) do
   begin
     ParseStatement;
@@ -482,6 +537,8 @@ begin
   
   ExpectToken(ttDelimiter, '}');
   Emit('  Return');
+  // clear function context
+  FCurrentFunction := '';
 end;
 
 procedure TSillyCCompiler.ParseStatement;
@@ -518,7 +575,10 @@ begin
   ParseExpression;
   ExpectToken(ttDelimiter, ';');
   
-  Emit('  Store $' + VarName);
+  if Symbol.Name <> '' then
+    Emit('  Store $' + Symbol.Name)
+  else
+    Emit('  Store $' + VarName);
 end;
  
 
@@ -743,7 +803,10 @@ begin
   else if Token.TokenType = ttIdentifier then
   begin
     Symbol := FindSymbol(Token.Value);
-    Emit('  Load $' + Token.Value);
+    if Symbol.Name <> '' then
+      Emit('  Load $' + Symbol.Name)
+    else
+      Emit('  Load $' + Token.Value);
     NextToken;
   end
   else if Token.Value = '(' then

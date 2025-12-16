@@ -1,9 +1,7 @@
-int a;
-int b;
-
 int main() {
   // equal values
-  a = 5; b = 5;
+  int a = 5;
+  int b = 5;
   printf("a=5 b=5");
   printf(a == b);
   printf(a != b);

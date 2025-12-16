@@ -53,103 +53,64 @@ type
     FCurrentFunctionHasReturn: Boolean;
     
   private
+    procedure Tokenize(const SourceCode: String);
     procedure AddToken(TokenType: TTokenType; const Value: String; Line, Column: Integer);
-    procedure Tokenize(const Source: String);
     function GetCurrentToken: TToken;
     function PeekToken: TToken;
     procedure NextToken;
     procedure ExpectToken(TokenType: TTokenType; const ExpectedValue: String = '');
-    
-    function ParseProgram: String;
-    procedure ParseExpression;
-    procedure ParseComparison;
-    procedure ParseDeclarations;
-    procedure ParseFunction;
-    procedure ParseStatement;
-    procedure ParseTerm;
-    procedure ParseFactor;
-    procedure ParseAssignment;
-    procedure ParseIfStatement;
-    procedure ParseWhileStatement;
-    procedure ParsePrintStatement;
-    procedure ParseReturnStatement;
-    
     function AddSymbol(const Name: String; SymbolType: TSymbolType): Word;
-    function FindSymbol(const Name: String): TSymbol;
-    function GenerateLabel: String;
     procedure AddTempVariable(const Name: String);
     procedure AddStringVariable(const Name, Value: String);
     procedure EmitTempVariables;
-
-    // current function context for local variables
     procedure Emit(const Instruction: String);
     procedure EmitLabel(const LabelName: String);
     procedure EmitComment(const Comment: String);
-    
-  public
+    function FindSymbol(const Name: String): TSymbol;
+    function GenerateLabel: String;
+    function Compile(const SourceCode: String): String;
+    function ParseProgram: String;
+    procedure ParseDeclarations;
+    procedure ParseFunction;
+    procedure ParseStatement;
+    procedure ParseAssignment;
+    procedure ParseComparison;
+    procedure ParseExpression;
+    procedure ParseTerm;
+    procedure ParseFactor;
+    procedure ParseIfStatement;
+    procedure ParseWhileStatement;
+    procedure ParseForStatement;
+    procedure ParsePrintStatement;
+    procedure ParseReturnStatement;
     constructor Create;
     destructor Destroy; override;
-    function Compile(const SourceCode: String): String;
   end;
 
-constructor TSillyCCompiler.Create;
-begin
-  inherited Create;
-  FSource := TStringList.Create;
-  FOutput := TStringList.Create;
-  FSymbols := TStringList.Create;
-  FTempVars := TStringList.Create;
-  FStringVars := TStringList.Create;
-  FDataAddress := 0;
-  FCodeAddress := 0;
-  FLabelCounter := 0;
-  FCurrentFunctionHasReturn := False;
-end;
-
-destructor TSillyCCompiler.Destroy;
-begin
-  FSource.Free;
-  FOutput.Free;
-  FSymbols.Free;
-  FTempVars.Free;
-  FStringVars.Free;
-  inherited Destroy;
-end;
-
-procedure TSillyCCompiler.AddToken(TokenType: TTokenType; const Value: String; Line, Column: Integer);
+procedure TSillyCCompiler.Tokenize(const SourceCode: String);
 var
-  Token: TToken;
-begin
-  Token.TokenType := TokenType;
-  Token.Value := Value;
-  Token.Line := Line;
-  Token.Column := Column;
-  SetLength(FTokens, Length(FTokens) + 1);
-  FTokens[High(FTokens)] := Token;
-end;
-
-procedure TSillyCCompiler.Tokenize(const Source: String);
-var
-  Lines: TStringArray;
-  Line, Token: String;
+  Lines: TStringList;
   i, j, Pos: Integer;
+  Line: String;
+  InLineComment, InString: Boolean;
+  Token: String;
   c: Char;
-  InString: Boolean;
-  InLineComment: Boolean;
 begin
-  SetLength(FTokens, 0);
-  Lines := Source.Split([#13, #10], TStringSplitOptions.ExcludeEmpty);
-  
-  for i := 0 to High(Lines) do
-  begin
-    Line := Lines[i].Trim;
-    j := 1;
-    Pos := 1;
-    InString := False;
-    InLineComment := False;
-    
-    // Skip line comments starting with //
-    if (Length(Line) >= 2) and (Line[1] = '/') and (Line[2] = '/') then
+  Lines := TStringList.Create;
+  try
+    Lines.Text := SourceCode;
+    SetLength(FTokens, 0);
+    // iterate lines
+    for i := 0 to Lines.Count - 1 do
+    begin
+      Line := Lines[i];
+      j := 1;
+      Pos := 1;
+      InLineComment := False;
+      InString := False;
+
+      // Skip line comments starting with //
+      if (Length(Line) >= 2) and (Line[1] = '/') and (Line[2] = '/') then
       Continue;
     
     while j <= Length(Line) do
@@ -208,7 +169,7 @@ begin
           Inc(j);
         
         Token := Copy(Line, Pos, j - Pos);
-        if (Token = 'int') or (Token = 'if') or (Token = 'else') or (Token = 'while') or (Token = 'return') or (Token = 'void') then
+        if (Token = 'int') or (Token = 'if') or (Token = 'else') or (Token = 'while') or (Token = 'return') or (Token = 'void') or (Token = 'for') then
           AddToken(ttKeyword, Token, i + 1, Pos)
         else
           AddToken(ttIdentifier, Token, i + 1, Pos);
@@ -248,9 +209,51 @@ begin
       
       Inc(j);
     end;
+    end; // for loop
+    AddToken(ttEOF, '', 0, 0);
+  finally
+    Lines.Free;
   end;
-  
-  AddToken(ttEOF, '', 0, 0);
+end;
+
+procedure TSillyCCompiler.AddToken(TokenType: TTokenType; const Value: String; Line, Column: Integer);
+var
+  t: TToken;
+  n: Integer;
+begin
+  n := Length(FTokens);
+  SetLength(FTokens, n + 1);
+  t.TokenType := TokenType;
+  t.Value := Value;
+  t.Line := Line;
+  t.Column := Column;
+  FTokens[n] := t;
+end;
+
+constructor TSillyCCompiler.Create;
+begin
+  inherited Create;
+  FOutput := TStringList.Create;
+  FSource := TStringList.Create;
+  FSymbols := TStringList.Create;
+  FTempVars := TStringList.Create;
+  FStringVars := TStringList.Create;
+  FCurrentToken := 0;
+  FDataAddress := 0;
+  FCodeAddress := 0;
+  FLabelCounter := 0;
+  FCurrentFunction := '';
+  FCurrentFunctionHasReturn := False;
+end;
+
+destructor TSillyCCompiler.Destroy;
+begin
+  FOutput.Free;
+  FSource.Free;
+  FSymbols.Free;
+  FTempVars.Free;
+  FStringVars.Free;
+  inherited Destroy;
 end;
 
 function TSillyCCompiler.GetCurrentToken: TToken;
@@ -531,6 +534,10 @@ begin
   Emit(FuncName + ':');
   
   ExpectToken(ttDelimiter, '(');
+
+  // Debug: show current token at start of for header
+  EmitComment(Format('for-header-start tokenIndex=%d token="%s" peek="%s"',
+    [FCurrentToken, GetCurrentToken.Value, PeekToken.Value]));
   ExpectToken(ttDelimiter, ')');
   ExpectToken(ttDelimiter, '{');
   // parse local declarations first
@@ -594,6 +601,8 @@ begin
   end
   else if Token.Value = 'while' then
     ParseWhileStatement
+  else if Token.Value = 'for' then
+    ParseForStatement
   else if Token.Value = 'return' then
     ParseReturnStatement
   else if Token.Value = 'printf' then
@@ -952,6 +961,158 @@ begin
     ParseStatement;
   
   ExpectToken(ttDelimiter, '}');
+  Emit('  Jump ' + StartLabel);
+  EmitLabel(EndLabel);
+end;
+
+procedure TSillyCCompiler.ParseForStatement;
+var
+  InitTokenIndex, CondStart, CondEnd, PostStart, RParenIndex, AfterHeader, AfterBody: Integer;
+  idx, level: Integer;
+  StartLabel, EndLabel: String;
+  VarName: String;
+begin
+  ExpectToken(ttKeyword, 'for');
+  ExpectToken(ttDelimiter, '(');
+
+  
+
+  StartLabel := GenerateLabel;
+  EndLabel := GenerateLabel;
+  PostStart := 0;
+
+  // --- init ---
+  if GetCurrentToken.Value = ';' then
+    ExpectToken(ttDelimiter, ';')
+  else if GetCurrentToken.Value = 'int' then
+  begin
+    ExpectToken(ttKeyword, 'int');
+    VarName := GetCurrentToken.Value;
+    ExpectToken(ttIdentifier);
+    // register local
+    if FCurrentFunction <> '' then
+    begin
+      AddSymbol(VarName, stVariable);
+      AddTempVariable(FCurrentFunction + '_' + VarName);
+    end
+    else
+    begin
+      AddSymbol(VarName, stVariable);
+      AddTempVariable(VarName);
+    end;
+
+    if GetCurrentToken.Value = '=' then
+    begin
+      ExpectToken(ttOperator, '=');
+      ParseExpression;
+      if FCurrentFunction <> '' then
+        Emit('  Store $' + FCurrentFunction + '_' + VarName)
+      else
+        Emit('  Store $' + VarName);
+    end;
+
+    ExpectToken(ttDelimiter, ';');
+  end
+  else if GetCurrentToken.TokenType = ttIdentifier then
+  begin
+    VarName := GetCurrentToken.Value;
+    ExpectToken(ttIdentifier);
+    if GetCurrentToken.Value = '=' then
+    begin
+      ExpectToken(ttOperator, '=');
+      ParseExpression;
+      ExpectToken(ttDelimiter, ';');
+      // store into variable (assume existing symbol)
+      if FCurrentFunction <> '' then
+        Emit('  Store $' + FCurrentFunction + '_' + VarName)
+      else
+        Emit('  Store $' + VarName);
+    end
+    else
+      ExpectToken(ttDelimiter, ';');
+  end
+  else
+  begin
+    ParseExpression;
+    ExpectToken(ttDelimiter, ';');
+  end;
+
+  
+
+  if GetCurrentToken.Value = ';' then
+  begin
+    ExpectToken(ttDelimiter, ';');
+    EmitLabel(StartLabel);
+  end
+  else
+  begin
+    EmitLabel(StartLabel);
+    ParseExpression;
+    ExpectToken(ttDelimiter, ';');
+    Emit('  JumpIfZero ' + EndLabel);
+  end;
+
+  // --- post: remember start index and find closing ) ---
+  if GetCurrentToken.Value = ')' then
+  begin
+    ExpectToken(ttDelimiter, ')');
+    AfterHeader := FCurrentToken;
+    PostStart := 0;
+  end
+  else
+  begin
+    PostStart := FCurrentToken;
+    // find matching ')'
+    idx := PostStart;
+    level := 0;
+    while idx < Length(FTokens) do
+    begin
+      if FTokens[idx].Value = '(' then Inc(level)
+      else if FTokens[idx].Value = ')' then
+      begin
+        if level = 0 then Break
+        else Dec(level);
+      end;
+      Inc(idx);
+    end;
+    RParenIndex := idx; // index of ')'
+    AfterHeader := RParenIndex + 1;
+    // move to body start
+    FCurrentToken := AfterHeader;
+  end;
+
+  // --- body ---
+  ExpectToken(ttDelimiter, '{');
+  while (GetCurrentToken.Value <> '}') and (GetCurrentToken.TokenType <> ttEOF) do
+    ParseStatement;
+  ExpectToken(ttDelimiter, '}');
+  // remember token after the body so we can resume there
+  AfterBody := FCurrentToken;
+
+  // --- emit post expression if present ---
+  if PostStart > 0 then
+  begin
+    FCurrentToken := PostStart;
+    // handle a post-assignment like `i = i + 1` which isn't a plain expression
+    if (GetCurrentToken.TokenType = ttIdentifier) and (PeekToken.Value = '=') then
+    begin
+      VarName := GetCurrentToken.Value;
+      ExpectToken(ttIdentifier);
+      ExpectToken(ttOperator, '=');
+      ParseExpression;
+      if FCurrentFunction <> '' then
+        Emit('  Store $' + FCurrentFunction + '_' + VarName)
+      else
+        Emit('  Store $' + VarName);
+    end
+    else
+      ParseExpression;
+    // consume the closing ')'
+    ExpectToken(ttDelimiter, ')');
+    // restore token pointer to after the body
+    FCurrentToken := AfterBody;
+  end;
+
   Emit('  Jump ' + StartLabel);
   EmitLabel(EndLabel);
 end;

@@ -1,6 +1,7 @@
 program SillyC;
 
 {$mode objfpc}{$H+}
+{$define DEBUG}
 
 uses
   Classes, SysUtils, StrUtils;
@@ -59,6 +60,7 @@ type
     
     function ParseProgram: String;
     procedure ParseExpression;
+    procedure ParseComparison;
     procedure ParseDeclarations;
     procedure ParseFunction;
     procedure ParseStatement;
@@ -520,27 +522,27 @@ begin
 end;
  
 
-procedure TSillyCCompiler.ParseExpression; // extended to support comparisons
+procedure TSillyCCompiler.ParseComparison;
 var
   Op: String;
-  TempVar, TempL, TempR: String;
+  TempL, TempR: String;
   TrueLabel, FalseLabel, EndLabel: String;
 begin
-  // First handle additive expressions as before
+  // handle additive part first
   ParseTerm;
 
   while (GetCurrentToken.Value = '+') or (GetCurrentToken.Value = '-') do
   begin
     Op := GetCurrentToken.Value;
     NextToken;
-    TempVar := GenerateLabel + '_temp';
-    AddTempVariable(TempVar);
-    Emit('  Store $' + TempVar);
+    TempL := GenerateLabel + '_temp';
+    AddTempVariable(TempL);
+    Emit('  Store $' + TempL);
     ParseTerm;
     if Op = '+' then
-      Emit('  Add $' + TempVar)
+      Emit('  Add $' + TempL)
     else
-      Emit('  Subtract $' + TempVar);
+      Emit('  Subtract $' + TempL);
   end;
 
   // Comparison operators: ==, !=, <, >, <=, >=
@@ -630,6 +632,53 @@ begin
   end;
 end;
 
+procedure TSillyCCompiler.ParseExpression;
+var
+  Op: String;
+  LFalse, LTrue, LEnd: String;
+begin
+  // parse left operand (comparisons/additive)
+  ParseComparison;
+
+  while (GetCurrentToken.Value = '&&') or (GetCurrentToken.Value = '||') do
+  begin
+    Op := GetCurrentToken.Value;
+    NextToken;
+
+    if Op = '&&' then
+    begin
+      LFalse := GenerateLabel + '_and_false';
+      LEnd := GenerateLabel + '_and_end';
+      // if left == 0 -> false
+      Emit('  JumpIfZero ' + LFalse);
+      // evaluate right
+      ParseComparison;
+      // if right == 0 -> false
+      Emit('  JumpIfZero ' + LFalse);
+      Emit('  Load 1');
+      Emit('  Jump ' + LEnd);
+      EmitLabel(LFalse);
+      Emit('  Load 0');
+      EmitLabel(LEnd);
+    end
+    else // '||'
+    begin
+      LTrue := GenerateLabel + '_or_true';
+      LEnd := GenerateLabel + '_or_end';
+      // if left != 0 -> true
+      Emit('  JumpIfNotZero ' + LTrue);
+      // evaluate right
+      ParseComparison;
+      Emit('  JumpIfNotZero ' + LTrue);
+      Emit('  Load 0');
+      Emit('  Jump ' + LEnd);
+      EmitLabel(LTrue);
+      Emit('  Load 1');
+      EmitLabel(LEnd);
+    end;
+  end;
+end;
+
 procedure TSillyCCompiler.ParseTerm;
 var
   Op: String;
@@ -654,6 +703,7 @@ procedure TSillyCCompiler.ParseFactor;
 var
   Token: TToken;
   Symbol: TSymbol;
+  LTrue, LEnd: String;
 begin
   Token := GetCurrentToken;
   // Handle unary minus
@@ -665,6 +715,23 @@ begin
     ParseFactor;
     // emit negate op
     Emit('  Negate');
+    Exit;
+  end;
+
+  // Handle logical NOT '!'
+  if (Token.TokenType = ttOperator) and (Token.Value = '!') then
+  begin
+    NextToken;
+    ParseFactor;
+    // if Acc == 0 -> 1 else 0
+    LTrue := GenerateLabel + '_not_true';
+    LEnd := GenerateLabel + '_not_end';
+    Emit('  JumpIfZero ' + LTrue);
+    Emit('  Load 0');
+    Emit('  Jump ' + LEnd);
+    EmitLabel(LTrue);
+    Emit('  Load 1');
+    EmitLabel(LEnd);
     Exit;
   end;
 
